@@ -1,0 +1,560 @@
+import java.awt.*;
+import java.awt.event.*;
+import java.util.*;
+import java.util.List;
+import javax.swing.*;
+
+/**
+ * SudokuGame - A graphical Sudoku game implementation using Java Swing
+ * This class provides a complete Sudoku game with puzzle generation,
+ * validation, and solving capabilities.
+ */
+public class SudokuGame extends JFrame {
+    // Constants for the game board dimensions and display
+    private static final int GRID_SIZE = 9;       // Standard 9x9 Sudoku grid
+    private static final int SUBGRID_SIZE = 3;    // 3x3 subgrids
+    private static final int CELL_SIZE = 60;      // Size of each cell in pixels
+    private static final int WIDTH = GRID_SIZE * CELL_SIZE + 100;  // Window width
+    private static final int HEIGHT = GRID_SIZE * CELL_SIZE + 150; // Window height
+
+    // Getters for window dimensions
+    public static int getWIDTH() {
+        return WIDTH;
+    }
+
+    public static int getHEIGHT() {
+        return HEIGHT;
+    }
+    
+    // UI components
+    private JPanel boardPanel;                    // Panel to hold the game board
+    private JTextField[][] cells = new JTextField[GRID_SIZE][GRID_SIZE]; // Grid cells for input
+    private int[][] solution = new int[GRID_SIZE][GRID_SIZE];  // Complete solution for current game
+    private int[][] game = new int[GRID_SIZE][GRID_SIZE];      // Current game state (with empty cells)
+    private boolean[][] fixed = new boolean[GRID_SIZE][GRID_SIZE]; // Tracks which cells are fixed/given
+    private JLabel statusLabel;                   // Displays game status and messages
+    private JButton newGameButton;                // Button to start a new game
+    private JButton solveButton;                  // Button to show solution
+    private JButton checkButton;                  // Button to check current answers
+    private JComboBox<String> difficultyComboBox; // Selector for game difficulty
+
+    // Getters and setters for game components
+    public JTextField[][] getCells() {
+        return cells;
+    }
+
+    public void setCells(JTextField[][] cells) {
+        this.cells = cells;
+    }
+
+    public boolean[][] getFixed() {
+        return fixed;
+    }
+
+    public void setFixed(boolean[][] fixed) {
+        this.fixed = fixed;
+    }
+
+    public int[][] getGame() {
+        return game;
+    }
+
+    public void setGame(int[][] game) {
+        this.game = game;
+    }
+
+    public int[][] getSolution() {
+        return solution;
+    }
+
+    public void setSolution(int[][] solution) {
+        this.solution = solution;
+    }
+    
+    /**
+     * Difficulty enum - Defines game difficulty levels based on number of revealed cells
+     * Fewer revealed cells means higher difficulty
+     */
+    private enum Difficulty {
+        EASY(40),    // 40 cells revealed - easiest level
+        MEDIUM(30),  // 30 cells revealed - medium level
+        HARD(25);    // 25 cells revealed - hardest level
+        
+        private final int numCells; // Number of cells to reveal
+        
+        Difficulty(int numCells) {
+            this.numCells = numCells;
+        }
+        
+        public int getNumCells() {
+            return numCells;
+        }
+    }
+    
+    /**
+     * Constructor - Creates and initializes the Sudoku game
+     */
+    public SudokuGame() {
+        setTitle("Advanced Java Sudoku");
+        setSize(WIDTH, HEIGHT);
+        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        setLocationRelativeTo(null);  // Center on screen
+        setResizable(false);          // Fixed window size
+        
+        initializeComponents();       // Create UI components
+        layoutComponents();           // Arrange components in the window
+        setupListeners();             // Set up event handling
+        
+        generateGame(Difficulty.EASY); // Start with an easy game by default
+    }
+    
+    /**
+     * Initializes all UI components for the game
+     */
+    private void initializeComponents() {
+        boardPanel = new JPanel(new GridLayout(GRID_SIZE, GRID_SIZE));
+        statusLabel = new JLabel("Welcome to Sudoku! Start a new game.");
+        newGameButton = new JButton("New Game");
+        solveButton = new JButton("Solve");
+        checkButton = new JButton("Check Solution");
+        difficultyComboBox = new JComboBox<>(new String[]{"Easy", "Medium", "Hard"});
+        
+        // Initialize cells with proper styling
+        Font font = new Font("SansSerif", Font.BOLD, 20);
+        for (int row = 0; row < GRID_SIZE; row++) {
+            for (int col = 0; col < GRID_SIZE; col++) {
+                cells[row][col] = new JTextField();
+                cells[row][col].setHorizontalAlignment(JTextField.CENTER);
+                cells[row][col].setFont(font);
+                
+                // Add thicker borders to visually separate the 3x3 subgrids
+                int top = (row % SUBGRID_SIZE == 0) ? 3 : 1;
+                int left = (col % SUBGRID_SIZE == 0) ? 3 : 1;
+                int bottom = (row % SUBGRID_SIZE == SUBGRID_SIZE - 1) ? 3 : 1;
+                int right = (col % SUBGRID_SIZE == SUBGRID_SIZE - 1) ? 3 : 1;
+                
+                cells[row][col].setBorder(BorderFactory.createMatteBorder(top, left, bottom, right, Color.BLACK));
+                boardPanel.add(cells[row][col]);
+            }
+        }
+    }
+    
+    /**
+     * Arranges components in the window using BorderLayout
+     */
+    private void layoutComponents() {
+        setLayout(new BorderLayout());
+        
+        // Control panel at the top with game controls
+        JPanel controlPanel = new JPanel();
+        controlPanel.add(new JLabel("Difficulty:"));
+        controlPanel.add(difficultyComboBox);
+        controlPanel.add(newGameButton);
+        controlPanel.add(checkButton);
+        controlPanel.add(solveButton);
+        
+        // Status panel at the bottom to display messages
+        JPanel statusPanel = new JPanel();
+        statusPanel.add(statusLabel);
+        
+        // Add all panels to the frame
+        add(boardPanel, BorderLayout.CENTER);
+        add(controlPanel, BorderLayout.NORTH);
+        add(statusPanel, BorderLayout.SOUTH);
+    }
+    
+    /**
+     * Sets up event listeners for all interactive components
+     */
+    @SuppressWarnings("unused")
+    private void setupListeners() {
+        // New Game button - generates a new puzzle with selected difficulty
+        newGameButton.addActionListener(e -> {
+            String selectedDifficulty = (String) difficultyComboBox.getSelectedItem();
+            Difficulty difficulty;
+            
+            // Convert string selection to enum using switch expression (Java 14+)
+            difficulty = switch (selectedDifficulty) {
+                case "Medium" -> Difficulty.MEDIUM;
+                case "Hard" -> Difficulty.HARD;
+                default -> Difficulty.EASY;
+            };
+            
+            generateGame(difficulty);
+        });
+        
+        // Solve button reveals the solution
+        solveButton.addActionListener(e -> solvePuzzle());
+        
+        // Check button validates the current state of the board
+        checkButton.addActionListener(e -> checkSolution());
+        
+        // Set up input validation and visual feedback for each cell
+        for (int row = 0; row < GRID_SIZE; row++) {
+            for (int col = 0; col < GRID_SIZE; col++) {
+                final int currentRow = row;
+                final int currentCol = col;
+                
+                // Validate key input - only allow numbers 1-9
+                cells[row][col].addKeyListener(new KeyAdapter() {
+                    @Override
+                    public void keyTyped(KeyEvent e) {
+                        char ch = e.getKeyChar();
+                        
+                        // Allow only digits 1-9 and backspace/delete
+                        if (ch < '1' || ch > '9') {
+                            if (ch != KeyEvent.VK_BACK_SPACE && ch != KeyEvent.VK_DELETE) {
+                                e.consume();  // Ignore invalid input
+                            }
+                        }
+                        
+                        // Limit to one character per cell
+                        if (cells[currentRow][currentCol].getText().length() >= 1 && 
+                            ch != KeyEvent.VK_BACK_SPACE && ch != KeyEvent.VK_DELETE) {
+                            e.consume();
+                        }
+                        
+                        // Don't allow editing of fixed/given cells
+                        if (fixed[currentRow][currentCol]) {
+                            e.consume();
+                        }
+                    }
+                });
+                
+                // Focus listeners for visual feedback when selecting cells
+                cells[row][col].addFocusListener(new FocusAdapter() {
+                    @Override
+                    public void focusGained(FocusEvent e) {
+                        if (!fixed[currentRow][currentCol]) {
+                            cells[currentRow][currentCol].setBackground(new Color(220, 240, 255));  // Light blue highlight
+                        }
+                    }
+                    
+                    @Override
+                    public void focusLost(FocusEvent e) {
+                        updateCellAppearance(currentRow, currentCol);  // Reset or update color based on state
+                    }
+                });
+            }
+        }
+    }
+    
+    /**
+     * Updates the visual appearance of a cell based on its state
+     * - Fixed cells: Grey background
+     * - Correct answers: Green background
+     * - Incorrect answers: Red background
+     * - Empty cells: White background
+     * 
+     * @param row The row index of the cell
+     * @param col The column index of the cell
+     */
+    private void updateCellAppearance(int row, int col) {
+        if (fixed[row][col]) {
+            // Given/fixed cells have grey background
+            cells[row][col].setBackground(new Color(230, 230, 230));
+            cells[row][col].setForeground(Color.BLACK);
+        } else {
+            String text = cells[row][col].getText();
+            if (!text.isEmpty()) {
+                int value = Integer.parseInt(text);
+                if (value == solution[row][col]) {
+                    // Correct answers have green background
+                    cells[row][col].setBackground(new Color(220, 255, 220));
+                    cells[row][col].setForeground(new Color(0, 100, 0));
+                } else {
+                    // Incorrect answers have red background
+                    cells[row][col].setBackground(new Color(255, 220, 220));
+                    cells[row][col].setForeground(new Color(180, 0, 0));
+                }
+            } else {
+                // Empty cells have white background
+                cells[row][col].setBackground(Color.WHITE);
+                cells[row][col].setForeground(Color.BLACK);
+            }
+        }
+    }
+    
+    /**
+     * Generates a new Sudoku puzzle with the specified difficulty
+     * 1. Creates a complete solution
+     * 2. Selectively removes cells based on difficulty
+     * 
+     * @param difficulty The difficulty level determining how many cells to reveal
+     */
+    private void generateGame(Difficulty difficulty) {
+        // Generate a solved Sudoku board
+        clearBoard();
+        generateSolution();
+        
+        // Copy solution to game
+        for (int row = 0; row < GRID_SIZE; row++) {
+            game[row] = Arrays.copyOf(solution[row], GRID_SIZE);
+        }
+        
+        // Remove some cells based on difficulty
+        int cellsToKeep = difficulty.getNumCells();
+        List<Integer> positions = new ArrayList<Integer>();
+        for (int i = 0; i < GRID_SIZE * GRID_SIZE; i++) {
+            positions.add(i);
+        }
+        Collections.shuffle(positions);  // Randomize which cells to keep
+        
+        // Set all cells to be hidden first
+        for (int row = 0; row < GRID_SIZE; row++) {
+            for (int col = 0; col < GRID_SIZE; col++) {
+                game[row][col] = 0;        // 0 represents an empty cell
+                fixed[row][col] = false;
+            }
+        }
+        
+        // Then reveal the ones we want to keep
+        for (int i = 0; i < cellsToKeep; i++) {
+            int pos = positions.get(i);
+            int row = pos / GRID_SIZE;
+            int col = pos % GRID_SIZE;
+            game[row][col] = solution[row][col];  // Reveal this cell
+            fixed[row][col] = true;               // Mark as fixed/given
+        }
+        
+        // Update the UI
+        updateBoardUI();
+        statusLabel.setText("New game started - " + difficulty.name() + " difficulty!");
+    }
+    
+    /**
+     * Clears the entire board to start from scratch
+     */
+    private void clearBoard() {
+        for (int row = 0; row < GRID_SIZE; row++) {
+            for (int col = 0; col < GRID_SIZE; col++) {
+                solution[row][col] = 0;
+                game[row][col] = 0;
+                fixed[row][col] = false;
+            }
+        }
+    }
+    
+    /**
+     * Updates the UI to reflect the current game state
+     */
+    private void updateBoardUI() {
+        for (int row = 0; row < GRID_SIZE; row++) {
+            for (int col = 0; col < GRID_SIZE; col++) {
+                if (game[row][col] != 0) {
+                    cells[row][col].setText(String.valueOf(game[row][col]));
+                } else {
+                    cells[row][col].setText("");  // Empty cell
+                }
+                updateCellAppearance(row, col);   // Apply appropriate styling
+            }
+        }
+    }
+    
+    /**
+     * Generates a complete Sudoku solution
+     * Uses a two-step approach:
+     * 1. Fill the diagonal 3x3 subgrids with random numbers
+     * 2. Use backtracking to solve the rest of the puzzle
+     */
+    private void generateSolution() {
+        @SuppressWarnings("unused")
+        Random random = new Random();
+        
+        // Fill diagonal 3x3 subgrids first (these can be filled independently without conflicts)
+        for (int subgrid = 0; subgrid < GRID_SIZE; subgrid += SUBGRID_SIZE) {
+            fillSubgrid(subgrid, subgrid);
+        }
+        
+        // Solve the rest of the puzzle using backtracking
+        solveSudoku();
+    }
+    
+    /**
+     * Fills a 3x3 subgrid with random unique numbers 1-9
+     * 
+     * @param startRow The starting row of the subgrid
+     * @param startCol The starting column of the subgrid
+     */
+    private void fillSubgrid(int startRow, int startCol) {
+        ArrayList<Integer> numbers = new ArrayList<>();
+        for (int i = 1; i <= GRID_SIZE; i++) {
+            numbers.add(i);
+        }
+        Collections.shuffle(numbers);  // Randomize the numbers
+        
+        int index = 0;
+        for (int row = 0; row < SUBGRID_SIZE; row++) {
+            for (int col = 0; col < SUBGRID_SIZE; col++) {
+                solution[startRow + row][startCol + col] = numbers.get(index++);
+            }
+        }
+    }
+    
+    /**
+     * Solves the Sudoku puzzle using backtracking algorithm
+     * 
+     * @return true if a solution was found, false otherwise
+     */
+    private boolean solveSudoku() {
+        int[] emptyCell = findEmptyCell();
+        if (emptyCell == null) {
+            return true;  // Puzzle is solved - no empty cells left
+        }
+        
+        int row = emptyCell[0];
+        int col = emptyCell[1];
+        
+        // Try each digit 1-9 in this cell
+        for (int num = 1; num <= GRID_SIZE; num++) {
+            if (isValidPlacement(row, col, num)) {
+                solution[row][col] = num;  // Try this number
+                
+                if (solveSudoku()) {
+                    return true;  // If this leads to a solution, we're done
+                }
+                
+                // If placing num at (row, col) doesn't lead to a solution, backtrack
+                solution[row][col] = 0;
+            }
+        }
+        
+        return false;  // No solution exists with the current board configuration
+    }
+    
+    /**
+     * Finds the first empty cell in the solution grid
+     * 
+     * @return array with [row, col] of empty cell, or null if no empty cells
+     */
+    private int[] findEmptyCell() {
+        for (int row = 0; row < GRID_SIZE; row++) {
+            for (int col = 0; col < GRID_SIZE; col++) {
+                if (solution[row][col] == 0) {
+                    return new int[]{row, col};
+                }
+            }
+        }
+        return null;  // No empty cells
+    }
+    
+    /**
+     * Checks if a number can be validly placed in a cell
+     * Must check row, column, and 3x3 subgrid for conflicts
+     * 
+     * @param row The row index
+     * @param col The column index
+     * @param num The number to check
+     * @return true if the placement is valid, false otherwise
+     */
+    private boolean isValidPlacement(int row, int col, int num) {
+        // Check row for conflicts
+        for (int c = 0; c < GRID_SIZE; c++) {
+            if (solution[row][c] == num) {
+                return false;
+            }
+        }
+        
+        // Check column for conflicts
+        for (int r = 0; r < GRID_SIZE; r++) {
+            if (solution[r][col] == num) {
+                return false;
+            }
+        }
+        
+        // Check 3x3 subgrid for conflicts
+        int subgridRowStart = (row / SUBGRID_SIZE) * SUBGRID_SIZE;
+        int subgridColStart = (col / SUBGRID_SIZE) * SUBGRID_SIZE;
+        
+        for (int r = 0; r < SUBGRID_SIZE; r++) {
+            for (int c = 0; c < SUBGRID_SIZE; c++) {
+                if (solution[subgridRowStart + r][subgridColStart + c] == num) {
+                    return false;
+                }
+            }
+        }
+        
+        return true;  // No conflicts found
+    }
+    
+    /**
+     * Validates the current state of the board
+     * Checks if all cells are filled and if all answers are correct
+     */
+    private void checkSolution() {
+        boolean complete = true;
+        boolean correct = true;
+        
+        // Check if board is filled and correct
+        for (int row = 0; row < GRID_SIZE; row++) {
+            for (int col = 0; col < GRID_SIZE; col++) {
+                String cellText = cells[row][col].getText();
+                if (cellText.isEmpty()) {
+                    complete = false;  // Found an empty cell
+                    continue;
+                }
+                
+                int value = Integer.parseInt(cellText);
+                if (value != solution[row][col]) {
+                    correct = false;  // Found an incorrect answer
+                }
+            }
+        }
+        
+        // Update status based on checks
+        if (!complete) {
+            statusLabel.setText("Puzzle is not complete yet!");
+        } else if (!correct) {
+            statusLabel.setText("Your solution contains errors!");
+        } else {
+            statusLabel.setText("Congratulations! You solved the puzzle correctly!");
+            JOptionPane.showMessageDialog(this, "Great job! You've solved the Sudoku puzzle!", 
+                                         "Puzzle Solved", JOptionPane.INFORMATION_MESSAGE);
+        }
+    }
+    
+    /**
+     * Reveals the complete solution to the puzzle
+     * Shows a confirmation dialog first to prevent accidental solving
+     */
+    private void solvePuzzle() {
+        if (JOptionPane.showConfirmDialog(this, 
+                "Are you sure you want to see the solution?", 
+                "Confirm Solution", 
+                JOptionPane.YES_NO_OPTION) == JOptionPane.YES_OPTION) {
+            
+            // Fill in all cells with the solution
+            for (int row = 0; row < GRID_SIZE; row++) {
+                for (int col = 0; col < GRID_SIZE; col++) {
+                    cells[row][col].setText(String.valueOf(solution[row][col]));
+                    cells[row][col].setBackground(new Color(240, 240, 240));
+                    cells[row][col].setForeground(Color.BLACK);
+                }
+            }
+            
+            statusLabel.setText("Solution displayed.");
+        }
+    }
+    
+    /**
+     * Main method - Entry point for the application
+     * Sets up the UI look and feel and creates the game window
+     * 
+     * @param args Command line arguments (not used)
+     */
+    @SuppressWarnings({"UseSpecificCatch", "CallToPrintStackTrace"})
+    public static void main(String[] args) {
+        try {
+            // Use the system look and feel for native appearance
+            UIManager.setLookAndFeel(UIManager.getSystemLookAndFeelClassName());
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        
+        // Create and show the game on the Event Dispatch Thread
+        SwingUtilities.invokeLater(() -> {
+            SudokuGame game = new SudokuGame();
+            game.setVisible(true);
+        });
+    }
+}
