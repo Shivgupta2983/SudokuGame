@@ -61,4 +61,4 @@ Standard Sudoku rules apply:
 * Inspired by classic Sudoku puzzles 💡
 
 ## License
-[MIT License](LICENSE) 📝
+[GNU General Public License](LICENSE) 📝
