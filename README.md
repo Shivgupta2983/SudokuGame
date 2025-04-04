@@ -1,7 +1,7 @@
 # Java Sudoku Game 🧩
 
 ## Preview
-![Sudoku Game Preview](https://github.com/username/java-sudoku-game/raw/main/screenshots/game-preview.png)
+![Sudoku Game Preview](https://github.com/Shivgupta2983/SudokuGame/blob/9cb17f1a33c6d8f2060fba57e50599ffae010a90/Preview%20Image.png)
 
 ## Overview
 A polished Java implementation of the classic Sudoku puzzle game using Swing GUI. Challenge yourself with different difficulty levels and enjoy a clean, intuitive interface! 🎮
